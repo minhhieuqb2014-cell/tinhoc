@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ứng Xử Trên Mạng - Bài Trình Chiếu Tương Tác</title>
+  <!-- Google Fonts: Be Vietnam Pro & Montserrat -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&amp;family=Montserrat:wght@700;800;900&amp;display=swap" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Be Vietnam Pro"', 'sans-serif'],
+            display: ['"Montserrat"', '"Be Vietnam Pro"', 'sans-serif'],
+          },
+          colors: {
+            creamYellow: '#FDE68A',
+            softYellow: '#FCD34D',
+            cardDark: 'rgba(7, 34, 58, 0.86)',
+            cardDarkHover: 'rgba(11, 49, 82, 0.95)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Reset & Base Typography */
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #061829;
+      overflow: hidden;
+      font-family: 'Be Vietnam Pro', sans-serif;
+    }
+
+    /* Full Viewport Container & 16:9 Scaled Stage */
+    #presentation-viewport {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: radial-gradient(circle at 50% 45%, #123e66 0%, #071b2e 65%, #040f1a 100%);
+      overflow: hidden;
+    }
+
+    /* Subtle Ambient Aura Behind Stage */
+    #presentation-viewport::before {
+      content: "";
+      position: absolute;
+      width: 72vw;
+      height: 72vh;
+      border-radius: 9999px;
+      background: radial-gradient(circle, rgba(56, 189, 248, 0.14), rgba(168, 85, 247, 0.08) 55%, transparent 75%);
+      filter: blur(40px);
+      pointer-events: none;
+      animation: ambientBreath 8s ease-in-out infinite;
+    }
+
+    @keyframes ambientBreath {
+      0%, 100% { transform: scale(0.96); opacity: 0.7; }
+      50% { transform: scale(1.05); opacity: 1; }
+    }
+
+    #slide-stage {
+      width: 1280px;
+      height: 720px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      box-shadow: 0 28px 80px -12px rgba(0, 0, 0, 0.88),
+                  0 0 0 1.5px rgba(125, 211, 252, 0.36),
+                  0 0 55px rgba(56, 189, 248, 0.24);
+      transform-origin: center center;
+      background: linear-gradient(180deg, #1e73be 0%, #155896 55%, #0e3d6b 100%);
+      perspective: 1800px;
+      transform-style: preserve-3d;
+    }
+
+    /* Top Slide Progress Bar */
+    #top-progress-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      z-index: 48;
+      pointer-events: none;
+    }
+
+    #top-progress-fill {
+      height: 100%;
+      width: 20%;
+      background: linear-gradient(90deg, #fde047, #38bdf8, #f472b6, #4ade80);
+      box-shadow: 0 0 12px rgba(253, 224, 71, 0.75);
+      transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* Rainbow Prism Sweeping Beam Overlay */
+    #prism-sweep {
+      position: absolute;
+      inset: -20%;
+      width: 140%;
+      height: 140%;
+      pointer-events: none;
+      z-index: 45;
+      opacity: 0;
+      background: linear-gradient(
+        115deg,
+        transparent 20%,
+        rgba(253, 224, 71, 0.32) 35%,
+        rgba(244, 63, 94, 0.42) 45%,
+        rgba(168, 85, 247, 0.42) 55%,
+        rgba(34, 211, 238, 0.42) 65%,
+        transparent 80%
+      );
+      mix-blend-mode: screen;
+      transform: translateX(-100%) skewX(-18deg);
+    }
+
+    #prism-sweep.sweep-active {
+      animation: prismSweepAnim 0.82s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes prismSweepAnim {
+      0% { opacity: 0.92; transform: translateX(-100%) skewX(-18deg); }
+      50% { opacity: 1; }
+      100% { opacity: 0; transform: translateX(100%) skewX(-18deg); }
+    }
+
+    /* Slide Layers & 3D Transitions */
+    .slide {
+      position: absolute;
+      inset: 0;
+      width: 1280px;
+      height: 720px;
+      opacity: 0;
+      visibility: hidden;
+      z-index: 10;
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+      will-change: transform, opacity, filter;
+    }
+
+    .slide.active {
+      opacity: 1;
+      visibility: visible;
+      z-index: 20;
+    }
+
+    .slide.animating-out {
+      opacity: 1;
+      visibility: visible;
+      z-index: 15;
+    }
+
+    /* 1. 3D Cube Spin */
+    @keyframes cubeEnterNext {
+      0% { opacity: 0; transform: translateZ(-260px) translateX(52%) rotateY(68deg) scale(0.9); filter: brightness(1.35) saturate(1.35); }
+      100% { opacity: 1; transform: translateZ(0) translateX(0) rotateY(0deg) scale(1); filter: brightness(1) saturate(1); }
+    }
+    @keyframes cubeExitNext {
+      0% { opacity: 1; transform: translateZ(0) translateX(0) rotateY(0deg) scale(1); }
+      100% { opacity: 0; transform: translateZ(-260px) translateX(-52%) rotateY(-68deg) scale(0.9); filter: brightness(0.65); }
+    }
+    @keyframes cubeEnterPrev {
+      0% { opacity: 0; transform: translateZ(-260px) translateX(-52%) rotateY(-68deg) scale(0.9); filter: brightness(1.35) saturate(1.35); }
+      100% { opacity: 1; transform: translateZ(0) translateX(0) rotateY(0deg) scale(1); filter: brightness(1) saturate(1); }
+    }
+    @keyframes cubeExitPrev {
+      0% { opacity: 1; transform: translateZ(0) translateX(0) rotateY(0deg) scale(1); }
+      100% { opacity: 0; transform: translateZ(-260px) translateX(52%) rotateY(68deg) scale(0.9); filter: brightness(0.65); }
+    }
+
+    /* 2. Vortex Zoom & Neon Glow */
+    @keyframes vortexEnter {
+      0% { opacity: 0; transform: scale(0.32) rotate(-16deg); filter: blur(10px) hue-rotate(80deg) brightness(1.5); }
+      65% { opacity: 1; transform: scale(1.02) rotate(1.5deg); filter: blur(0px) hue-rotate(12deg) brightness(1.12); }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0px) hue-rotate(0deg) brightness(1); }
+    }
+    @keyframes vortexExit {
+      0% { opacity: 1; transform: scale(1) rotate(0deg); filter: blur(0px) hue-rotate(0deg); }
+      100% { opacity: 0; transform: scale(1.7) rotate(15deg); filter: blur(12px) hue-rotate(-80deg) brightness(1.4); }
+    }
+
+    /* 3. Holo Flip 3D */
+    @keyframes holoFlipEnterNext {
+      0% { opacity: 0; transform: rotateX(38deg) rotateY(-24deg) translateY(72px) scale(0.86); filter: hue-rotate(50deg) brightness(1.3); }
+      100% { opacity: 1; transform: rotateX(0deg) rotateY(0deg) translateY(0) scale(1); filter: hue-rotate(0deg) brightness(1); }
+    }
+    @keyframes holoFlipExitNext {
+      0% { opacity: 1; transform: rotateX(0deg) rotateY(0deg) translateY(0) scale(1); }
+      100% { opacity: 0; transform: rotateX(-36deg) rotateY(24deg) translateY(-72px) scale(0.86); filter: hue-rotate(-50deg) brightness(0.72); }
+    }
+    @keyframes holoFlipEnterPrev {
+      0% { opacity: 0; transform: rotateX(-38deg) rotateY(24deg) translateY(-72px) scale(0.86); filter: hue-rotate(-50deg) brightness(1.3); }
+      100% { opacity: 1; transform: rotateX(0deg) rotateY(0deg) translateY(0) scale(1); filter: hue-rotate(0deg) brightness(1); }
+    }
+    @keyframes holoFlipExitPrev {
+      0% { opacity: 1; transform: rotateX(0deg) rotateY(0deg) translateY(0) scale(1); }
+      100% { opacity: 0; transform: rotateX(36deg) rotateY(-24deg) translateY(72px) scale(0.86); filter: hue-rotate(50deg) brightness(0.72); }
+    }
+
+    /* 4. Prism Wave */
+    @keyframes prismEnterNext {
+      0% { opacity: 0; transform: translateX(100px) skewX(-8deg) scale(0.94); filter: saturate(1.6) brightness(1.25); }
+      70% { opacity: 1; transform: translateX(-8px) skewX(1.5deg) scale(1.01); }
+      100% { opacity: 1; transform: translateX(0) skewX(0deg) scale(1); filter: saturate(1) brightness(1); }
+    }
+    @keyframes prismExitNext {
+      0% { opacity: 1; transform: translateX(0) skewX(0deg) scale(1); }
+      100% { opacity: 0; transform: translateX(-100px) skewX(8deg) scale(0.94); filter: saturate(1.4) brightness(0.72); }
+    }
+    @keyframes prismEnterPrev {
+      0% { opacity: 0; transform: translateX(-100px) skewX(8deg) scale(0.94); filter: saturate(1.6) brightness(1.25); }
+      70% { opacity: 1; transform: translateX(8px) skewX(-1.5deg) scale(1.01); }
+      100% { opacity: 1; transform: translateX(0) skewX(0deg) scale(1); filter: saturate(1) brightness(1); }
+    }
+    @keyframes prismExitPrev {
+      0% { opacity: 1; transform: translateX(0) skewX(0deg) scale(1); }
+      100% { opacity: 0; transform: translateX(100px) skewX(-8deg) scale(0.94); filter: saturate(1.4) brightness(0.72); }
+    }
+
+    .tx-cube-enter-next { animation: cubeEnterNext 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-cube-exit-next  { animation: cubeExitNext 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-cube-enter-prev { animation: cubeEnterPrev 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-cube-exit-prev  { animation: cubeExitPrev 0.72s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+    .tx-vortex-enter { animation: vortexEnter 0.74s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .tx-vortex-exit  { animation: vortexExit 0.65s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+    .tx-holo-enter-next { animation: holoFlipEnterNext 0.74s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-holo-exit-next  { animation: holoFlipExitNext 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-holo-enter-prev { animation: holoFlipEnterPrev 0.74s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-holo-exit-prev  { animation: holoFlipExitPrev 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+    .tx-prism-enter-next { animation: prismEnterNext 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-prism-exit-next  { animation: prismExitNext 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-prism-enter-prev { animation: prismEnterPrev 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .tx-prism-exit-prev  { animation: prismExitPrev 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+    /* Staggered Spring Entrance */
+    .slide .stagger-item {
+      opacity: 0;
+      transform: translateY(26px) scale(0.96);
+    }
+
+    .slide.active .stagger-item {
+      animation: springPopUp 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    .slide.active .stagger-1 { animation-delay: 0.06s; }
+    .slide.active .stagger-2 { animation-delay: 0.14s; }
+    .slide.active .stagger-3 { animation-delay: 0.22s; }
+    .slide.active .stagger-4 { animation-delay: 0.30s; }
+    .slide.active .stagger-5 { animation-delay: 0.38s; }
+    .slide.active .stagger-6 { animation-delay: 0.46s; }
+
+    @keyframes springPopUp {
+      0% { opacity: 0; transform: translateY(28px) scale(0.95); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Typography & Glow Effects */
+    .hero-title-shadow {
+      text-shadow: 0 4px 20px rgba(4, 21, 38, 0.75),
+                   0 0 28px rgba(253, 224, 71, 0.42),
+                   0 2px 4px rgba(0, 0, 0, 0.55);
+    }
+
+    .shimmer-gold-text {
+      background: linear-gradient(90deg, #FDE68A 0%, #FFFBEB 25%, #FACC15 50%, #FDE047 75%, #FDE68A 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: goldShimmer 4s linear infinite;
+      filter: drop-shadow(0 4px 16px rgba(4, 21, 38, 0.7));
+    }
+
+    @keyframes goldShimmer {
+      0% { background-position: 0% center; }
+      100% { background-position: 200% center; }
+    }
+
+    .text-drop-shadow {
+      text-shadow: 0 2px 10px rgba(4, 21, 38, 0.72);
+    }
+
+    /* Glass Cards with Rainbow Border + Shine Sweep + 3D Tilt */
+    .glass-card {
+      position: relative;
+      background: rgba(7, 34, 58, 0.85);
+      border: 1.5px solid rgba(147, 197, 253, 0.28);
+      box-shadow: 0 14px 32px -8px rgba(3, 18, 33, 0.62),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(10px);
+      transform-style: preserve-3d;
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 0.28s ease,
+                  border-color 0.28s ease,
+                  background 0.28s ease;
+      overflow: hidden;
+    }
+
+    /* Shine Sweep Beam across Card */
+    .glass-card::after {
+      content: "";
+      position: absolute;
+      top: -40%;
+      left: -130%;
+      width: 65%;
+      height: 180%;
+      background: linear-gradient(
+        105deg,
+        transparent 10%,
+        rgba(255, 255, 255, 0.08) 40%,
+        rgba(255, 255, 255, 0.24) 50%,
+        rgba(255, 255, 255, 0.08) 60%,
+        transparent 90%
+      );
+      transform: skewX(-22deg);
+      transition: left 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+      pointer-events: none;
+    }
+
+    .glass-card:hover::after {
+      left: 150%;
+    }
+
+    /* Rainbow Gradient Border Glow */
+    .glass-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 2px;
+      background: linear-gradient(125deg, #fde047, #f43f5e, #a855f7, #22d3ee, #4ade80, #fde047);
+      background-size: 300% 300%;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      animation: rainbowBorderFlow 3.5s linear infinite;
+      pointer-events: none;
+    }
+
+    .glass-card:hover::before {
+      opacity: 1;
+    }
+
+    .glass-card:hover {
+      background: rgba(10, 46, 79, 0.94);
+      box-shadow: 0 20px 40px -8px rgba(3, 18, 33, 0.76),
+                  0 0 26px rgba(56, 189, 248, 0.32),
+                  0 0 18px rgba(244, 63, 94, 0.2);
+    }
+
+    @keyframes rainbowBorderFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Illustration Panel Styling */
+    .illustration-panel {
+      background: linear-gradient(145deg, rgba(8, 37, 64, 0.88), rgba(14, 65, 110, 0.76));
+      border: 1.5px solid rgba(186, 230, 253, 0.32);
+      box-shadow: 0 16px 36px -8px rgba(3, 18, 33, 0.65),
+                  inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      backdrop-filter: blur(10px);
+    }
+
+    /* SVG Illustration Micro-Animations */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.04); }
+    }
+    .bulb-glow {
+      transform-origin: 685px 85px;
+      animation: pulseGlow 3.2s ease-in-out infinite;
+    }
+
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+    .network-float {
+      animation: floatSlow 6s ease-in-out infinite;
+    }
+
+    @keyframes bobGentle {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+    .illus-bob {
+      animation: bobGentle 4.2s ease-in-out infinite;
+    }
+
+    @keyframes spinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .illus-spin-slow {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: spinSlow 18s linear infinite;
+    }
+
+    @keyframes radarPing {
+      0% { transform: scale(0.85); opacity: 0.8; }
+      100% { transform: scale(1.45); opacity: 0; }
+    }
+    .illus-ping {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: radarPing 2.4s ease-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="presentation-viewport">
+    <div id="slide-stage">
+      <!-- Top Slide Progress Bar -->
+      <div id="top-progress-track">
+        <div id="top-progress-fill" style="width: 20%;"></div>
+      </div>
+
+      <!-- Background Digital Network Illustration with Silhouettes -->
+      <svg id="bg-network" viewBox="0 0 1280 720" class="absolute inset-0 w-full h-full pointer-events-none">
+        <defs>
+          <radialGradient id="bulbAura" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fef08a" stop-opacity="0.72"></stop>
+            <stop offset="100%" stop-color="#fef08a" stop-opacity="0"></stop>
+          </radialGradient>
+          <linearGradient id="contentDimGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#05192d" stop-opacity="0.48"></stop>
+            <stop offset="100%" stop-color="#041221" stop-opacity="0.68"></stop>
+          </linearGradient>
+        </defs>
+
+        <!-- Connecting Lines -->
+        <g stroke="#ffffff" stroke-opacity="0.22" stroke-width="1.5" fill="none">
+          <line x1="125" y1="90" x2="245" y2="185"></line>
+          <line x1="245" y1="185" x2="346" y2="94"></line>
+          <line x1="245" y1="185" x2="455" y2="225"></line>
+          <line x1="346" y1="94" x2="565" y2="112"></line>
+          <line x1="565" y1="112" x2="685" y2="85"></line>
+          <line x1="685" y1="85" x2="735" y2="215"></line>
+          <line x1="685" y1="85" x2="915" y2="99"></line>
+          <line x1="735" y1="215" x2="885" y2="265"></line>
+          <line x1="915" y1="99" x2="1050" y2="75"></line>
+          <line x1="915" y1="99" x2="1055" y2="205"></line>
+          <line x1="1055" y1="205" x2="1175" y2="235"></line>
+          <line x1="175" y1="485" x2="120" y2="210"></line>
+          <line x1="365" y1="495" x2="245" y2="185"></line>
+          <line x1="365" y1="495" x2="455" y2="225"></line>
+          <line x1="555" y1="480" x2="595" y2="275"></line>
+          <line x1="765" y1="488" x2="735" y2="215"></line>
+          <line x1="955" y1="482" x2="885" y2="265"></line>
+          <line x1="1115" y1="495" x2="1055" y2="205"></line>
+        </g>
+
+        <!-- Digital Icons -->
+        <g class="network-float">
+          <g transform="translate(102, 52)">
+            <rect x="0" y="0" width="46" height="76" rx="8" fill="#1e293b" stroke="#ffffff" stroke-width="2"></rect>
+            <rect x="5" y="9" width="36" height="54" rx="2" fill="#e2e8f0"></rect>
+            <rect x="8" y="13" width="30" height="14" rx="1" fill="#38bdf8"></rect>
+            <rect x="8" y="30" width="30" height="12" rx="1" fill="#ef4444"></rect>
+            <circle cx="23" cy="69" r="3" fill="#94a3b8"></circle>
+          </g>
+
+          <g transform="translate(302, 65)">
+            <rect x="0" y="0" width="88" height="58" rx="6" fill="#1e293b" stroke="#ffffff" stroke-width="2"></rect>
+            <rect x="6" y="6" width="76" height="46" rx="2" fill="#f8fafc"></rect>
+            <rect x="10" y="10" width="68" height="8" fill="#cbd5e1"></rect>
+            <circle cx="62" cy="34" r="10" fill="#facc15"></circle>
+          </g>
+
+          <g transform="translate(120, 210)">
+            <circle cx="0" cy="0" r="26" fill="#ffffff"></circle>
+            <circle cx="0" cy="0" r="18" fill="#dc2626"></circle>
+            <polygon points="-5,-8 9,0 -5,8" fill="#ffffff"></polygon>
+          </g>
+
+          <g transform="translate(245, 185)">
+            <circle cx="0" cy="0" r="28" fill="#ffffff"></circle>
+            <circle cx="0" cy="0" r="14" fill="none" stroke="#0f3d68" stroke-width="6" stroke-dasharray="6 4"></circle>
+            <circle cx="0" cy="0" r="6" fill="#ffffff"></circle>
+          </g>
+
+          <g transform="translate(455, 225)">
+            <circle cx="0" cy="0" r="27" fill="#ffffff"></circle>
+            <path d="M0,0 L0,-18 A18,18 0 0,1 18,0 Z" fill="#ef4444"></path>
+            <path d="M0,0 L18,0 A18,18 0 1,1 -12,-13 Z" fill="#0f3d68"></path>
+          </g>
+
+          <g transform="translate(540, 95)">
+            <rect x="0" y="0" width="50" height="34" rx="3" fill="#ffffff" stroke="#0f3d68" stroke-width="2"></rect>
+            <polyline points="2,2 25,20 48,2" fill="none" stroke="#0f3d68" stroke-width="2.5"></polyline>
+          </g>
+
+          <g transform="translate(685, 85)" class="bulb-glow">
+            <circle cx="0" cy="0" r="46" fill="url(#bulbAura)"></circle>
+            <path d="M-18,-6 A20,20 0 1,1 18,-6 C18,6 10,12 10,20 L-10,20 C-10,12 -18,6 -18,-6 Z" fill="#fef08a" stroke="#eab308" stroke-width="2"></path>
+            <rect x="-9" y="21" width="18" height="5" rx="2" fill="#334155"></rect>
+            <rect x="-7" y="27" width="14" height="5" rx="2" fill="#1e293b"></rect>
+          </g>
+
+          <g transform="translate(735, 215)">
+            <circle cx="0" cy="0" r="27" fill="#ffffff"></circle>
+            <rect x="-14" y="-11" width="28" height="20" rx="4" fill="#15803d"></rect>
+            <polygon points="-6,9 -12,15 0,9" fill="#15803d"></polygon>
+          </g>
+
+          <g transform="translate(595, 275)">
+            <circle cx="0" cy="0" r="15" fill="#bae6fd" fill-opacity="0.4" stroke="#1e293b" stroke-width="4"></circle>
+            <line x1="11" y1="11" x2="24" y2="24" stroke="#facc15" stroke-width="6" stroke-linecap="round"></line>
+          </g>
+
+          <g transform="translate(865, 72)">
+            <rect x="8" y="0" width="84" height="54" rx="5" fill="#1e293b" stroke="#ffffff" stroke-width="2"></rect>
+            <rect x="13" y="5" width="74" height="44" fill="#f8fafc"></rect>
+            <path d="M0,54 L100,54 L94,61 L6,61 Z" fill="#cbd5e1"></path>
+          </g>
+
+          <g transform="translate(885, 265)">
+            <circle cx="0" cy="0" r="27" fill="#ffffff"></circle>
+            <circle cx="0" cy="0" r="17" fill="none" stroke="#0f3d68" stroke-width="2"></circle>
+            <ellipse cx="0" cy="0" rx="8" ry="17" fill="none" stroke="#0f3d68" stroke-width="1.8"></ellipse>
+            <line x1="-17" y1="0" x2="17" y2="0" stroke="#0f3d68" stroke-width="1.8"></line>
+          </g>
+
+          <g transform="translate(1028, 48)">
+            <rect x="0" y="0" width="44" height="54" rx="6" fill="#0f2942" stroke="#38bdf8" stroke-width="1.5"></rect>
+            <circle cx="22" cy="18" r="9" fill="#ffffff"></circle>
+            <path d="M8,46 C8,34 36,34 36,46 Z" fill="#ffffff"></path>
+          </g>
+
+          <g transform="translate(1055, 205)">
+            <circle cx="0" cy="0" r="26" fill="#ffffff"></circle>
+            <rect x="-14" y="-10" width="28" height="20" rx="2" fill="none" stroke="#0f3d68" stroke-width="2.2"></rect>
+            <polyline points="-14,-10 0,2 14,-10" fill="none" stroke="#0f3d68" stroke-width="2.2"></polyline>
+          </g>
+
+          <g transform="translate(1175, 235)">
+            <circle cx="0" cy="0" r="26" fill="#ffffff"></circle>
+            <path d="M-11,6 A7,7 0 0,1 -9,-7 A9,9 0 0,1 8,-6 A6,6 0 0,1 11,6 Z" fill="#0f3d68"></path>
+          </g>
+        </g>
+
+        <!-- Silhouettes of People Talking at Bottom -->
+        <g fill="#08243d" opacity="0.92">
+          <circle cx="175" cy="485" r="36"></circle>
+          <path d="M105,720 C105,600 125,540 175,540 C215,540 235,585 245,650 L285,615 L298,628 L248,695 L245,720 Z"></path>
+          <circle cx="365" cy="495" r="37"></circle>
+          <path d="M295,720 C300,605 320,548 365,548 C415,548 435,605 442,720 Z"></path>
+          <circle cx="555" cy="480" r="38"></circle>
+          <path d="M475,720 C480,595 505,536 555,536 C605,536 628,585 645,645 L682,625 L692,640 L638,688 L635,720 Z"></path>
+          <circle cx="765" cy="488" r="36"></circle>
+          <path d="M685,720 C690,600 715,542 765,542 C812,542 835,598 845,720 Z"></path>
+          <path d="M715,580 L692,472 L708,468 L735,565 Z"></path>
+          <circle cx="955" cy="482" r="37"></circle>
+          <path d="M875,720 C882,598 905,538 955,538 C1005,538 1028,598 1035,720 Z"></path>
+          <circle cx="1115" cy="495" r="35"></circle>
+          <path d="M1045,720 C1050,608 1072,548 1115,548 C1162,548 1185,608 1192,720 Z"></path>
+        </g>
+
+        <!-- Glowing White Head Nodes -->
+        <g fill="#ffffff">
+          <circle cx="175" cy="485" r="15"></circle>
+          <circle cx="365" cy="495" r="15"></circle>
+          <circle cx="555" cy="480" r="16"></circle>
+          <circle cx="765" cy="488" r="15"></circle>
+          <circle cx="955" cy="482" r="15"></circle>
+          <circle cx="1115" cy="495" r="14"></circle>
+        </g>
+
+        <!-- Dimming Veil for Content Slides -->
+        <rect id="content-veil" width="1280" height="720" fill="url(#contentDimGrad)" opacity="0" class="transition-opacity duration-500"></rect>
+      </svg>
+
+      <!-- Interactive Connected Node Particles + Burst Canvas -->
+      <canvas id="particle-canvas" width="1280" height="720" class="absolute inset-0 w-full h-full pointer-events-none z-30"></canvas>
+
+      <!-- Rainbow Prism Light Beam Sweep -->
+      <div id="prism-sweep"></div>
+
+      <!-- =====================================================================
+           SLIDE 01: MỤC LỤC 4 PHẦN
+           ===================================================================== -->
+      <section class="slide active flex flex-col justify-between px-16 py-11" data-slide="0">
+        <div class="flex items-center justify-between stagger-item stagger-1">
+          <div class="inline-flex items-center gap-2.5 px-6 py-2 rounded-full bg-[#07223a]/85 border border-sky-300/35 shadow-lg backdrop-blur-md">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-300 animate-ping"></span>
+            <span class="text-creamYellow font-extrabold text-[16px] tracking-wider uppercase">MỤC LỤC &bull; 4 PHẦN</span>
+          </div>
+          <span class="px-4 py-1.5 rounded-full bg-sky-950/75 border border-sky-300/25 text-sky-200 text-xs font-semibold tracking-wide">
+            THÀNH VIÊN:
+MINH HIẾU:
+MINH THƯ:
+THẢO MY 
+          </span>
+        </div>
+
+        <div class="my-auto pt-2 flex items-center justify-between gap-8">
+          <div class="flex-1">
+            <h1 class="stagger-item stagger-2 font-display font-black text-[70px] leading-[1.06] tracking-tight shimmer-gold-text uppercase">
+              ỨNG XỬ TRÊN MẠNG
+            </h1>
+            <p class="stagger-item stagger-3 mt-2.5 text-white font-semibold text-[25px] text-drop-shadow">
+              Sử dụng Internet văn minh, an toàn và có trách nhiệm
+            </p>
+
+            <div class="grid grid-cols-2 gap-5 mt-8 max-w-[1140px]">
+              <button onclick="triggerCardBurst(event); goToSlide(1)" class="stagger-item stagger-3 glass-card tilt-card rounded-2xl px-7 py-5 flex items-center gap-5 text-left cursor-pointer group">
+                <span class="font-display font-black text-[42px] leading-none text-creamYellow group-hover:scale-110 transition-transform">01</span>
+                <span class="text-white font-extrabold text-[21px] leading-snug tracking-wide uppercase">TÔN TRỌNG<br>KHI GIAO TIẾP</span>
+              </button>
+              <button onclick="triggerCardBurst(event); goToSlide(2)" class="stagger-item stagger-4 glass-card tilt-card rounded-2xl px-7 py-5 flex items-center gap-5 text-left cursor-pointer group">
+                <span class="font-display font-black text-[42px] leading-none text-cyan-300 group-hover:scale-110 transition-transform">02</span>
+                <span class="text-white font-extrabold text-[21px] leading-snug tracking-wide uppercase">BẢO VỆ THÔNG TIN<br>CÁ NHÂN</span>
+              </button>
+              <button onclick="triggerCardBurst(event); goToSlide(3)" class="stagger-item stagger-5 glass-card tilt-card rounded-2xl px-7 py-5 flex items-center gap-5 text-left cursor-pointer group">
+                <span class="font-display font-black text-[42px] leading-none text-pink-300 group-hover:scale-110 transition-transform">03</span>
+                <span class="text-white font-extrabold text-[21px] leading-snug tracking-wide uppercase">KIỂM CHỨNG<br>TRƯỚC KHI CHIA SẺ</span>
+              </button>
+              <button onclick="triggerCardBurst(event); goToSlide(4)" class="stagger-item stagger-6 glass-card tilt-card rounded-2xl px-7 py-5 flex items-center gap-5 text-left cursor-pointer group">
+                <span class="font-display font-black text-[42px] leading-none text-emerald-300 group-hover:scale-110 transition-transform">04</span>
+                <span class="text-white font-extrabold text-[21px] leading-snug tracking-wide uppercase">ỨNG PHÓ VỚI BẮT<br>NẠT TRÊN MẠNG</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center stagger-item stagger-6">
+          <span class="text-white/90 font-bold text-[18px] tracking-widest text-drop-shadow">01 / 05</span>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SLIDE 02: 01 TÔN TRỌNG KHI GIAO TIẾP + SVG ILLUSTRATION
+           ===================================================================== -->
+      <section class="slide flex flex-col justify-between px-16 py-11" data-slide="1">
+        <div class="flex items-start justify-between gap-8 pt-1">
+          <div class="stagger-item stagger-1">
+            <div class="flex items-center gap-5">
+              <span class="font-display font-black text-[72px] leading-none text-creamYellow hero-title-shadow">01</span>
+              <h2 class="font-display font-extrabold text-[40px] leading-[1.14] text-white uppercase text-drop-shadow">
+                TÔN TRỌNG<br>KHI GIAO TIẾP
+              </h2>
+            </div>
+            <p class="mt-2.5 text-sky-100 font-medium text-[21px] text-drop-shadow">
+              Giao tiếp văn minh bắt đầu từ lời nói và thái độ
+            </p>
+          </div>
+
+          <div class="stagger-item stagger-2 flex flex-col gap-1.5 bg-[#061f36]/82 border border-sky-300/20 rounded-xl p-2.5 backdrop-blur-md shadow-lg min-w-[295px]">
+            <button onclick="goToSlide(1)" class="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-400/25 via-pink-500/20 to-cyan-400/25 border border-creamYellow/60 text-left">
+              <span class="font-display font-extrabold text-[13px] text-creamYellow">01</span>
+              <span class="font-bold text-[12px] text-white tracking-wide uppercase">TÔN TRỌNG KHI GIAO TIẾP</span>
+            </button>
+            <button onclick="goToSlide(2)" class="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/10 opacity-60 hover:opacity-100 text-left transition cursor-pointer">
+              <span class="font-display font-extrabold text-[13px] text-creamYellow">02</span>
+              <span class="font-semibold text-[12px] text-slate-200 tracking-wide uppercase">BẢO VỆ THÔNG TIN CÁ NHÂN</span>
+            </button>
+            <button onclick="goToSlide(3)" class="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/10 opacity-60 hover:opacity-100 text-left transition cursor-pointer">
+              <span class="font-display font-extrabold text-[13px] text-creamYellow">03</span>
+              <span class="font-semibold text-[12px] text-slate-200 tracking-wide uppercase">KIỂM CHỨNG TRƯỚC KHI CHIA SẺ</span>
+            </button>
+            <button onclick="goToSlide(4)" class="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/10 opacity-60 hover:opacity-100 text-left transition cursor-pointer">
+              <span class="font-display font-extrabold text-[13px] text-creamYellow">04</span>
+              <span class="font-semibold text-[12px] text-slate-200 tracking-wide uppercase">ỨNG PHÓ VỚI BẮT NẠT TRÊN MẠNG</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Content Row: SVG Illustration + 4 Columns -->
+        <div class="my-auto flex items-stretch gap-6">
+          <div class="stagger-item stagger-2 illustration-panel rounded-2xl w-[265px] shrink-0 flex flex-col items-center justify-center p-4">
+            <svg viewBox="0 0 220 220" class="w-full h-[185px] illus-bob">
+              <circle cx="110" cy="110" r="88" fill="#0ea5e9" fill-opacity="0.14" stroke="#7dd3fc" stroke-opacity="0.35" stroke-dasharray="6 6"></circle>
+              <rect x="26" y="42" width="102" height="58" rx="14" fill="#fde047"></rect>
+              <polygon points="48,100 62,100 44,116" fill="#fde047"></polygon>
+              <circle cx="52" cy="71" r="6" fill="#0f172a"></circle>
+              <circle cx="77" cy="71" r="6" fill="#0f172a"></circle>
+              <circle cx="102" cy="71" r="6" fill="#0f172a"></circle>
+              <rect x="92" y="114" width="102" height="58" rx="14" fill="#38bdf8"></rect>
+              <polygon points="168,172 154,172 174,188" fill="#38bdf8"></polygon>
+              <path d="M143,134 C136,127 125,132 125,141 C125,150 143,160 143,160 C143,160 161,150 161,141 C161,132 150,127 143,134 Z" fill="#f43f5e"></path>
+              <circle cx="44" cy="156" r="8" fill="#4ade80" fill-opacity="0.85"></circle>
+              <circle cx="182" cy="54" r="7" fill="#f472b6" fill-opacity="0.85"></circle>
+            </svg>
+            <span class="mt-1 text-amber-200 font-bold text-xs tracking-wider uppercase">Lắng nghe &amp; Tôn trọng</span>
+          </div>
+
+          <div class="stagger-item stagger-3 glass-card tilt-card rounded-2xl p-7 flex-1 flex items-center">
+            <div class="grid grid-cols-4 divide-x divide-sky-200/20 w-full">
+              <div class="stagger-item stagger-3 pr-5 flex flex-col">
+                <span class="font-display font-black text-[42px] leading-none text-creamYellow mb-3">1.</span>
+                <p class="text-white font-medium text-[19.5px] leading-[1.46]">Dùng ngôn từ lịch sự, rõ ràng; không xúc phạm hay chế giễu người khác.</p>
+              </div>
+              <div class="stagger-item stagger-4 px-5 flex flex-col">
+                <span class="font-display font-black text-[42px] leading-none text-cyan-300 mb-3">2.</span>
+                <p class="text-white font-medium text-[19.5px] leading-[1.46]">Tôn trọng sự khác biệt về ý kiến, sở thích và hoàn cảnh.</p>
+              </div>
+              <div class="stagger-item stagger-5 px-5 flex flex-col">
+                <span class="font-display font-black text-[42px] leading-none text-pink-300 mb-3">3.</span>
+                <p class="text-white font-medium text-[19.5px] leading-[1.46]">Suy nghĩ trước khi bình luận, chia sẻ hoặc phản hồi.</p>
+              </div>
+              <div class="stagger-item stagger-6 pl-5 flex flex-col">
+                <span class="font-display font-black text-[42px] leading-none text-emerald-300 mb-3">4.</span>
+                <p class="text-white font-medium text-[19.5px] leading-[1.46]">Không viết toàn chữ in hoa, spam hay cố tình gây tranh cãi.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center">
+          <span class="text-white/90 font-bold text-[18px] tracking-widest text-drop-shadow">02 / 05</span>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SLIDE 03: 02 BẢO VỆ THÔNG TIN CÁ NHÂN + SVG ILLUSTRATION
+           ===================================================================== -->
+      <section class="slide flex flex-col justify-between px-16 py-11" data-slide="2">
+        <div class="flex items-center justify-between gap-6 pt-1">
+          <div class="stagger-item stagger-1">
+            <div class="flex items-center gap-5">
+              <span class="font-display font-black text-[72px] leading-none text-creamYellow hero-title-shadow">02</span>
+              <h2 class="font-display font-extrabold text-[40px] leading-[1.14] text-white uppercase text-drop-shadow">
+                BẢO VỆ THÔNG TIN<br>CÁ NHÂN
+              </h2>
+            </div>
+            <p class="mt-2.5 text-sky-100 font-medium text-[21px] text-drop-shadow">Thông tin cá nhân cần được giữ an toàn</p>
+          </div>
+
+          <div class="stagger-item stagger-2 illustration-panel rounded-2xl px-5 py-2.5 flex items-center gap-4">
+            <svg viewBox="0 0 120 120" class="w-[84px] h-[84px] shrink-0">
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#38bdf8" stroke-opacity="0.4" stroke-width="2" class="illus-ping"></circle>
+              <path d="M60 16 L96 30 V58 C96 82 80 99 60 106 C40 99 24 82 24 58 V30 Z" fill="#0f766e" stroke="#5eead4" stroke-width="3"></path>
+              <rect x="46" y="54" width="28" height="24" rx="5" fill="#fde047"></rect>
+              <path d="M51 54 V45 A9 9 0 0 1 69 45 V54" fill="none" stroke="#fef08a" stroke-width="4" stroke-linecap="round"></path>
+              <circle cx="60" cy="66" r="3.5" fill="#0f172a"></circle>
+            </svg>
+            <div>
+              <div class="text-emerald-300 font-extrabold text-sm uppercase tracking-wider">Khiên Bảo Mật Số</div>
+              <div class="text-sky-100 text-xs mt-0.5 leading-relaxed">Giữ bí mật dữ liệu &amp; tài khoản<br>trên mọi nền tảng mạng</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-5 my-auto">
+          <div class="stagger-item stagger-2 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-creamYellow leading-none">1.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Không công khai địa chỉ nhà, số điện thoại, mật khẩu hoặc lịch trình.</p>
+          </div>
+          <div class="stagger-item stagger-3 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-cyan-300 leading-none">2.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Đặt mật khẩu mạnh và không chia sẻ mã xác minh cho người khác.</p>
+          </div>
+          <div class="stagger-item stagger-4 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-pink-300 leading-none">3.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Kiểm tra quyền riêng tư trước khi đăng ảnh hoặc bài viết.</p>
+          </div>
+          <div class="stagger-item stagger-5 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-emerald-300 leading-none">4.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Chỉ kết bạn và trò chuyện với người đáng tin cậy.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center">
+          <span class="text-white/90 font-bold text-[18px] tracking-widest text-drop-shadow">03 / 05</span>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SLIDE 04: 03 KIỂM CHỨNG TRƯỚC KHI CHIA SẺ + SVG ILLUSTRATION
+           ===================================================================== -->
+      <section class="slide flex flex-col justify-between px-16 py-11" data-slide="3">
+        <div class="flex items-center justify-between gap-6 pt-1">
+          <div class="stagger-item stagger-1">
+            <div class="flex items-center gap-5">
+              <span class="font-display font-black text-[72px] leading-none text-creamYellow hero-title-shadow">03</span>
+              <h2 class="font-display font-extrabold text-[40px] leading-[1.14] text-white uppercase text-drop-shadow">
+                KIỂM CHỨNG<br>TRƯỚC KHI CHIA SẺ
+              </h2>
+            </div>
+            <p class="mt-2.5 text-sky-100 font-medium text-[21px] text-drop-shadow">Chậm lại một chút để tránh lan truyền tin sai</p>
+          </div>
+
+          <div class="stagger-item stagger-2 illustration-panel rounded-2xl px-5 py-2.5 flex items-center gap-4">
+            <svg viewBox="0 0 120 120" class="w-[84px] h-[84px] shrink-0">
+              <circle cx="52" cy="52" r="28" fill="#bae6fd" fill-opacity="0.28" stroke="#fde047" stroke-width="5"></circle>
+              <line x1="73" y1="73" x2="98" y2="98" stroke="#facc15" stroke-width="8" stroke-linecap="round"></line>
+              <path d="M39 53 L48 62 L66 43" fill="none" stroke="#4ade80" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>
+              <circle cx="94" cy="28" r="14" fill="#38bdf8" fill-opacity="0.25" class="illus-spin-slow"></circle>
+            </svg>
+            <div>
+              <div class="text-amber-300 font-extrabold text-sm uppercase tracking-wider">Đối Chiếu Nguồn Tin</div>
+              <div class="text-sky-100 text-xs mt-0.5 leading-relaxed">Xác thực rõ ràng trước khi<br>bấm chia sẻ hoặc bình luận</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-5 my-auto">
+          <div class="stagger-item stagger-2 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-creamYellow leading-none">1.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Đọc kỹ nội dung, xem ngày đăng và nguồn cung cấp thông tin.</p>
+          </div>
+          <div class="stagger-item stagger-3 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-cyan-300 leading-none">2.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Đối chiếu với các nguồn đáng tin cậy khác.</p>
+          </div>
+          <div class="stagger-item stagger-4 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-pink-300 leading-none">3.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Không chia sẻ tin đồn, hình ảnh gây hiểu lầm hoặc nội dung chưa xác thực.</p>
+          </div>
+          <div class="stagger-item stagger-5 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-emerald-300 leading-none">4.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Nếu phát hiện thông tin sai, hãy đính chính bằng thái độ bình tĩnh.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center">
+          <span class="text-white/90 font-bold text-[18px] tracking-widest text-drop-shadow">04 / 05</span>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SLIDE 05: 04 ỨNG PHÓ VỚI BẮT NẠT TRÊN MẠNG + SVG ILLUSTRATION
+           ===================================================================== -->
+      <section class="slide flex flex-col justify-between px-16 py-11" data-slide="4">
+        <div class="flex items-center justify-between gap-6 pt-1">
+          <div class="stagger-item stagger-1">
+            <div class="flex items-center gap-5">
+              <span class="font-display font-black text-[72px] leading-none text-creamYellow hero-title-shadow">04</span>
+              <h2 class="font-display font-extrabold text-[40px] leading-[1.14] text-white uppercase text-drop-shadow">
+                ỨNG PHÓ VỚI BẮT<br>NẠT TRÊN MẠNG
+              </h2>
+            </div>
+            <p class="mt-2.5 text-sky-100 font-medium text-[21px] text-drop-shadow">Không im lặng trước hành vi làm tổn thương người khác</p>
+          </div>
+
+          <div class="stagger-item stagger-2 illustration-panel rounded-2xl px-5 py-2.5 flex items-center gap-4">
+            <svg viewBox="0 0 120 120" class="w-[84px] h-[84px] shrink-0 illus-bob">
+              <circle cx="60" cy="60" r="44" fill="#f43f5e" fill-opacity="0.14" stroke="#fda4af" stroke-opacity="0.4" stroke-width="2"></circle>
+              <line x1="36" y1="26" x2="36" y2="94" stroke="#fde047" stroke-width="4" stroke-linecap="round"></line>
+              <path d="M36 28 H84 L71 45 L84 62 H36 Z" fill="#f43f5e"></path>
+              <circle cx="84" cy="84" r="18" fill="#10b981" stroke="#ffffff" stroke-width="2.5"></circle>
+              <path d="M84 93 C84 93 74 87 74 81 C74 77 79 75 84 79 C89 75 94 77 94 81 C94 87 84 93 84 93 Z" fill="#ffffff"></path>
+            </svg>
+            <div>
+              <div class="text-rose-300 font-extrabold text-sm uppercase tracking-wider">Lưu Chứng &amp; Cầu Cứu</div>
+              <div class="text-sky-100 text-xs mt-0.5 leading-relaxed">Chặn, báo cáo vi phạm &amp; chia sẻ<br>với người lớn đáng tin cậy</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-5 my-auto">
+          <div class="stagger-item stagger-2 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-creamYellow leading-none">1.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Không đáp trả bằng lời lẽ xúc phạm hoặc tham gia công kích.</p>
+          </div>
+          <div class="stagger-item stagger-3 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-cyan-300 leading-none">2.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Lưu lại bằng chứng phù hợp và chặn tài khoản có hành vi quấy rối.</p>
+          </div>
+          <div class="stagger-item stagger-4 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-pink-300 leading-none">3.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Báo cáo nội dung vi phạm cho nền tảng.</p>
+          </div>
+          <div class="stagger-item stagger-5 glass-card tilt-card rounded-2xl p-6">
+            <span class="font-display font-black text-[36px] text-emerald-300 leading-none">4.</span>
+            <p class="mt-2.5 text-white font-medium text-[20.5px] leading-[1.45]">Chia sẻ với cha mẹ, thầy cô hoặc người lớn đáng tin cậy để được hỗ trợ.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center">
+          <span class="text-white/90 font-bold text-[18px] tracking-widest text-drop-shadow">05 / 05</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Floating Navigation, 3D Effect Selector & Fullscreen Bar (No Download Button) -->
+    <div id="floating-controls" class="fixed bottom-4 left-4 z-50 flex flex-wrap items-center gap-2 bg-slate-950/85 hover:bg-slate-950/95 border border-sky-400/25 backdrop-blur-md px-3.5 py-2 rounded-full shadow-2xl transition-all duration-300 opacity-90 hover:opacity-100">
+      <button id="btn-prev" onclick="prevSlide()" title="Slide trước (Mũi tên trái)" class="w-8 h-8 rounded-full flex items-center justify-center text-white hover:bg-white/15 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+        </svg>
+      </button>
+
+      <div id="slide-dots" class="flex items-center gap-1.5 px-1">
+        <button onclick="goToSlide(0)" class="dot-btn h-2 rounded-full transition-all cursor-pointer w-6 bg-creamYellow" title="Slide 1: Mục lục"></button>
+        <button onclick="goToSlide(1)" class="dot-btn w-2 h-2 rounded-full bg-white/40 hover:bg-white/75 transition-all cursor-pointer" title="Slide 2: Tôn trọng khi giao tiếp"></button>
+        <button onclick="goToSlide(2)" class="dot-btn w-2 h-2 rounded-full bg-white/40 hover:bg-white/75 transition-all cursor-pointer" title="Slide 3: Bảo vệ thông tin cá nhân"></button>
+        <button onclick="goToSlide(3)" class="dot-btn w-2 h-2 rounded-full bg-white/40 hover:bg-white/75 transition-all cursor-pointer" title="Slide 4: Kiểm chứng trước khi chia sẻ"></button>
+        <button onclick="goToSlide(4)" class="dot-btn w-2 h-2 rounded-full bg-white/40 hover:bg-white/75 transition-all cursor-pointer" title="Slide 5: Ứng phó với bắt nạt trên mạng"></button>
+      </div>
+
+      <button id="btn-next" onclick="nextSlide()" title="Slide tiếp theo (Mũi tên phải / Space)" class="w-8 h-8 rounded-full flex items-center justify-center text-white hover:bg-white/15 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+        </svg>
+      </button>
+
+      <div class="w-[1px] h-4 bg-white/20 mx-0.5"></div>
+
+      <div class="flex items-center gap-1.5 bg-white/10 border border-white/15 rounded-full px-2.5 py-1">
+        <span class="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Hiệu ứng:</span>
+        <select id="transition-mode" title="Chọn hiệu ứng chuyển trang 3D" class="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer pr-1">
+          <option value="random" class="bg-slate-900 text-amber-300">✨ Ngẫu nhiên rực rỡ</option>
+          <option value="cube" class="bg-slate-900 text-white">🧊 Lập phương 3D</option>
+          <option value="vortex" class="bg-slate-900 text-white">🌀 Cổng xoáy Neon</option>
+          <option value="holo" class="bg-slate-900 text-white">💎 Lật Hologram</option>
+          <option value="prism" class="bg-slate-900 text-white">🌈 Sóng Lăng Kính</option>
+        </select>
+      </div>
+
+      <div class="w-[1px] h-4 bg-white/20 mx-0.5"></div>
+
+      <button onclick="toggleFullscreen()" title="Toàn màn hình (F)" class="w-8 h-8 rounded-full flex items-center justify-center text-sky-200 hover:text-white hover:bg-white/15 transition cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const slides = document.querySelectorAll('.slide');
+    const dots = document.querySelectorAll('.dot-btn');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const contentVeil = document.getElementById('content-veil');
+    const stage = document.getElementById('slide-stage');
+    const prismSweep = document.getElementById('prism-sweep');
+    const transitionSelect = document.getElementById('transition-mode');
+    const progressFill = document.getElementById('top-progress-fill');
+
+    let currentSlide = 0;
+    const totalSlides = slides.length;
+    let isTransitioning = false;
+    let wheelCooldown = false;
+
+    const transitionClasses = [
+      'tx-cube-enter-next', 'tx-cube-exit-next', 'tx-cube-enter-prev', 'tx-cube-exit-prev',
+      'tx-vortex-enter', 'tx-vortex-exit',
+      'tx-holo-enter-next', 'tx-holo-exit-next', 'tx-holo-enter-prev', 'tx-holo-exit-prev',
+      'tx-prism-enter-next', 'tx-prism-exit-next', 'tx-prism-enter-prev', 'tx-prism-exit-prev',
+      'animating-out'
+    ];
+
+    /* =========================================================================
+       NETWORK NODE PARTICLES + CONNECTING LINES + BURST FIREWORKS
+       ========================================================================= */
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    const neonColors = ['#fde047', '#38bdf8', '#f43f5e', '#c084fc', '#34d399', '#fb923c', '#ffffff'];
+
+    let ambientParticles = [];
+    let burstParticles = [];
+
+    function initAmbientParticles() {
+      ambientParticles = [];
+      for (let i = 0; i < 54; i++) {
+        ambientParticles.push({
+          x: Math.random() * 1280,
+          y: Math.random() * 720,
+          r: Math.random() * 2.5 + 1.1,
+          vx: (Math.random() - 0.5) * 0.55,
+          vy: (Math.random() - 0.5) * 0.55,
+          color: neonColors[Math.floor(Math.random() * neonColors.length)],
+          alpha: Math.random() * 0.65 + 0.25,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    function spawnBurst(cx, cy, count = 50) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 7.2 + 2.2;
+        burstParticles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1.1,
+          r: Math.random() * 4.4 + 2,
+          color: neonColors[Math.floor(Math.random() * neonColors.length)],
+          life: 1,
+          decay: Math.random() * 0.022 + 0.015,
+          shape: Math.random() > 0.45 ? 'circle' : 'diamond'
+        });
+      }
+    }
+
+    function triggerCardBurst(event) {
+      const rect = stage.getBoundingClientRect();
+      const scaleX = 1280 / rect.width;
+      const scaleY = 720 / rect.height;
+      const x = (event.clientX - rect.left) * scaleX;
+      const y = (event.clientY - rect.top) * scaleY;
+      spawnBurst(x, y, 42);
+    }
+
+    function animateParticles() {
+      if (!ctx) return;
+      ctx.clearRect(0, 0, 1280, 720);
+
+      const maxDist = 115;
+      for (let i = 0; i < ambientParticles.length; i++) {
+        const a = ambientParticles[i];
+        for (let j = i + 1; j < ambientParticles.length; j++) {
+          const b = ambientParticles[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < maxDist) {
+            const lineAlpha = (1 - dist / maxDist) * 0.16;
+            ctx.save();
+            ctx.strokeStyle = `rgba(186, 230, 253, ${lineAlpha.toFixed(3)})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+
+      for (let p of ambientParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.phase += 0.03;
+
+        if (p.x < -15) p.x = 1295;
+        if (p.x > 1295) p.x = -15;
+        if (p.y < -15) p.y = 735;
+        if (p.y > 735) p.y = -15;
+
+        const twinkle = p.alpha * (0.68 + 0.32 * Math.sin(p.phase));
+        ctx.save();
+        ctx.globalAlpha = twinkle;
+        ctx.fillStyle = p.color;
+        ctx.shadowBlur = 9;
+        ctx.shadowColor = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      for (let i = burstParticles.length - 1; i >= 0; i--) {
+        const b = burstParticles[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.vy += 0.14;
+        b.vx *= 0.97;
+        b.life -= b.decay;
+
+        if (b.life <= 0) {
+          burstParticles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, b.life);
+        ctx.fillStyle = b.color;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = b.color;
+
+        if (b.shape === 'circle') {
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r * b.life, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.translate(b.x, b.y);
+          ctx.rotate(b.life * 5);
+          const s = b.r * 1.4 * b.life;
+          ctx.fillRect(-s / 2, -s / 2, s, s);
+        }
+        ctx.restore();
+      }
+
+      requestAnimationFrame(animateParticles);
+    }
+
+    initAmbientParticles();
+    animateParticles();
+
+    /* =========================================================================
+       3D MOUSE TILT INTERACTION ON CARDS
+       ========================================================================= */
+    function initTiltCards() {
+      const cards = document.querySelectorAll('.tilt-card');
+      cards.forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const relX = (e.clientX - rect.left) / rect.width - 0.5;
+          const relY = (e.clientY - rect.top) / rect.height - 0.5;
+          const rotY = relX * 9;
+          const rotX = -relY * 8;
+          card.style.transform = `perspective(900px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateY(-3px) scale(1.012)`;
+        });
+
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = '';
+        });
+      });
+    }
+    initTiltCards();
+
+    /* =========================================================================
+       RESPONSIVE 16:9 STAGE SCALING
+       ========================================================================= */
+    function scaleStage() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const scale = Math.min(vw / 1280, vh / 720);
+      stage.style.transform = `scale(${scale})`;
+    }
+
+    window.addEventListener('resize', scaleStage);
+    window.addEventListener('load', scaleStage);
+    scaleStage();
+
+    /* =========================================================================
+       SLIDE TRANSITION CONTROLLER
+       ========================================================================= */
+    function triggerPrismSweep() {
+      prismSweep.classList.remove('sweep-active');
+      void prismSweep.offsetWidth;
+      prismSweep.classList.add('sweep-active');
+    }
+
+    let effectCycleIndex = 0;
+    function getSelectedEffect() {
+      const mode = transitionSelect.value;
+      if (mode !== 'random') return mode;
+      const modes = ['cube', 'vortex', 'holo', 'prism'];
+      const chosen = modes[effectCycleIndex % modes.length];
+      effectCycleIndex++;
+      return chosen;
+    }
+
+    function updateControlsUI() {
+      contentVeil.style.opacity = currentSlide === 0 ? '0' : '1';
+      progressFill.style.width = `${((currentSlide + 1) / totalSlides) * 100}%`;
+
+      dots.forEach((dot, index) => {
+        if (index === currentSlide) {
+          dot.classList.remove('w-2', 'bg-white/40');
+          dot.classList.add('w-6', 'bg-creamYellow');
+        } else {
+          dot.classList.remove('w-6', 'bg-creamYellow');
+          dot.classList.add('w-2', 'bg-white/40');
+        }
+      });
+
+      btnPrev.disabled = currentSlide === 0;
+      btnNext.disabled = currentSlide === totalSlides - 1;
+    }
+
+    function goToSlide(targetIndex) {
+      if (targetIndex < 0 || targetIndex >= totalSlides || targetIndex === currentSlide || isTransitioning) {
+        return;
+      }
+
+      isTransitioning = true;
+      const direction = targetIndex > currentSlide ? 'next' : 'prev';
+      const outgoingSlide = slides[currentSlide];
+      const incomingSlide = slides[targetIndex];
+      const effect = getSelectedEffect();
+
+      slides.forEach(s => {
+        s.classList.remove(...transitionClasses);
+        s.querySelectorAll('.tilt-card').forEach(c => { c.style.transform = ''; });
+      });
+
+      triggerPrismSweep();
+      spawnBurst(640, 360, 46);
+      spawnBurst(direction === 'next' ? 1020 : 260, 220, 30);
+
+      outgoingSlide.classList.remove('active');
+      outgoingSlide.classList.add('animating-out');
+      incomingSlide.classList.add('active');
+
+      if (effect === 'cube') {
+        outgoingSlide.classList.add(direction === 'next' ? 'tx-cube-exit-next' : 'tx-cube-exit-prev');
+        incomingSlide.classList.add(direction === 'next' ? 'tx-cube-enter-next' : 'tx-cube-enter-prev');
+      } else if (effect === 'vortex') {
+        outgoingSlide.classList.add('tx-vortex-exit');
+        incomingSlide.classList.add('tx-vortex-enter');
+      } else if (effect === 'holo') {
+        outgoingSlide.classList.add(direction === 'next' ? 'tx-holo-exit-next' : 'tx-holo-exit-prev');
+        incomingSlide.classList.add(direction === 'next' ? 'tx-holo-enter-next' : 'tx-holo-enter-prev');
+      } else {
+        outgoingSlide.classList.add(direction === 'next' ? 'tx-prism-exit-next' : 'tx-prism-exit-prev');
+        incomingSlide.classList.add(direction === 'next' ? 'tx-prism-enter-next' : 'tx-prism-enter-prev');
+      }
+
+      currentSlide = targetIndex;
+      updateControlsUI();
+
+      setTimeout(() => {
+        outgoingSlide.classList.remove(...transitionClasses);
+        incomingSlide.classList.remove(...transitionClasses);
+        incomingSlide.classList.add('active');
+        isTransitioning = false;
+      }, 760);
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        goToSlide(currentSlide + 1);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        goToSlide(currentSlide - 1);
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToSlide(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToSlide(totalSlides - 1);
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      }
+    });
+
+    window.addEventListener('wheel', (e) => {
+      if (wheelCooldown || isTransitioning) return;
+      if (Math.abs(e.deltaY) > 25) {
+        wheelCooldown = true;
+        if (e.deltaY > 0) nextSlide();
+        else prevSlide();
+        setTimeout(() => { wheelCooldown = false; }, 800);
+      }
+    }, { passive: true });
+
+    let touchStartX = 0;
+    let touchEndX = 0;
+    stage.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    stage.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      const diff = touchStartX - touchEndX;
+      if (Math.abs(diff) > 45) {
+        if (diff > 0) nextSlide();
+        else prevSlide();
+      }
+    }, { passive: true });
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    }
+
+    updateControlsUI();
+  </script>
+</body>
+</html>
